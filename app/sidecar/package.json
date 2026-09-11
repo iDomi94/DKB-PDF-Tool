@@ -1,0 +1,13 @@
+{
+  "name": "dkb-postfach-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fetch-Maschine fuer den Online-Abruf. Entscheidet nicht ueber Zielpfade/Kategorien -- das macht der Tauri-Hauptprozess (Rust). Spricht mit ihm ueber JSON-Zeilen auf stdin/stdout.",
+  "dependencies": {
+    "playwright-core": "^1.48.0"
+  },
+  "scripts": {
+    "start": "node src/main.mjs"
+  }
+}

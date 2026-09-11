@@ -1,0 +1,91 @@
+name: Release
+
+# Baut Installer fuer macOS (universal), Windows und Linux und legt sie als
+# Entwurf-Release an. Ausgeloest durch einen Versions-Tag ("v0.1.0" o. ae.)
+# oder manuell ueber "Run workflow". Der Entwurf muss danach von Hand
+# veroeffentlicht werden -- so gibt es vor der Veroeffentlichung noch eine
+# Gelegenheit zur Kontrolle.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: windows-latest
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust-Targets fuer macOS (universal) installieren
+        if: matrix.platform == 'macos-latest'
+        run: |
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-apple-darwin
+
+      - name: Rust-Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust-Build-Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri -> target
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Linux-Systemabhaengigkeiten (Tauri v2 + WebKitGTK)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev
+
+      - name: Frontend-Abhaengigkeiten
+        working-directory: app
+        run: npm ci
+
+      - name: Sidecar-Abhaengigkeiten
+        working-directory: app/sidecar
+        run: npm ci
+
+      - name: Rust-Tests
+        working-directory: app/src-tauri
+        run: cargo test --locked
+
+      - name: Tauri-Build + Entwurf-Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tagName: ${{ github.ref_name }}
+          releaseName: "DKB-PDF-Tool ${{ github.ref_name }}"
+          releaseBody: |
+            Automatisch gebauter Release. Vor dem Veroeffentlichen bitte
+            kurz die Installer pruefen -- siehe README fuer Hinweise zu
+            unsignierten Paketen (macOS-Gatekeeper / Windows SmartScreen).
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

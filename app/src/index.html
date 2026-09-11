@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DKB-Postfach</title>
+    <script type="module" src="/main.js" defer></script>
+  </head>
+
+  <body>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="abruf">Online-Abruf</button>
+      <button class="tab-btn" data-tab="sortieren">Sortieren</button>
+      <button class="tab-btn" data-tab="einstellungen">Einstellungen</button>
+    </nav>
+
+    <main class="container">
+      <section id="tab-abruf" class="tab-panel active">
+        <h1>Online-Abruf</h1>
+
+        <p>
+          <button id="login-btn" type="button">Anmelden</button>
+          <button id="quit-btn" type="button">Browser schließen</button>
+          <button id="download-btn" type="button">Dokumente abrufen</button>
+          <button id="pause-btn" type="button" hidden>Pause</button>
+          <button id="cancel-btn" type="button" hidden>Abbrechen</button>
+        </p>
+
+        <p id="status-msg">Noch nicht gestartet.</p>
+        <p id="download-progress"></p>
+
+        <h2>Ereignisse</h2>
+        <pre id="log" class="log"></pre>
+      </section>
+
+      <section id="tab-sortieren" class="tab-panel">
+        <h1>Dokumente sortieren</h1>
+        <p>
+          Nimmt einen Ordner mit bereits vorhandenen PDFs (z. B. ein alter Export) und sortiert
+          sie mit denselben Regeln wie der Online-Abruf in den in den Einstellungen gewählten
+          Ausgabeordner ein. Kopiert nur -- die Originale bleiben unverändert.
+        </p>
+
+        <p>
+          <input id="sort-input-dir" type="text" readonly placeholder="Noch kein Quellordner gewählt" />
+          <button id="pick-sort-input-dir" type="button">Quellordner wählen …</button>
+        </p>
+
+        <p>
+          <button id="sort-btn" type="button">Sortieren starten</button>
+          <button id="sort-pause-btn" type="button" hidden>Pause</button>
+          <button id="sort-cancel-btn" type="button" hidden>Abbrechen</button>
+        </p>
+
+        <p id="sort-progress"></p>
+        <pre id="sort-log" class="log"></pre>
+      </section>
+
+      <div id="duplicate-dialog" class="modal-overlay" hidden>
+        <div class="modal">
+          <h2>Datei existiert schon</h2>
+          <p id="duplicate-info"></p>
+          <p class="modal-actions">
+            <button id="dup-skip" type="button">Überspringen</button>
+            <button id="dup-overwrite" type="button">Überschreiben</button>
+            <button id="dup-keep-both" type="button">Beide behalten</button>
+          </p>
+        </div>
+      </div>
+
+      <section id="tab-einstellungen" class="tab-panel">
+        <h1>Einstellungen</h1>
+
+        <fieldset>
+          <legend>Ausgabeordner</legend>
+          <p>
+            <input id="output-dir" type="text" readonly placeholder="Noch kein Ordner gewählt" />
+            <button id="pick-output-dir" type="button">Ordner wählen …</button>
+          </p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Ordnerstruktur &amp; Dateiname</legend>
+          <p>
+            Verfügbare Platzhalter: <code>{year}</code> <code>{category}</code>
+            <code>{owner}</code> <code>{subCategory}</code> <code>{date}</code> <code>{title}</code>
+            <code>{account}</code> <code>{id}</code>.
+            Ein Pfadabschnitt, der nach dem Einsetzen leer bleibt (z. B. <code>{owner}</code>
+            bei Dokumenten ohne Depotbezug), fällt automatisch weg.
+          </p>
+          <p>
+            <code>{account}</code> ist eine Konto-/Kartenreferenz, sofern die Bank sie mitliefert
+            (nicht bei jeder Dokumentart vorhanden). <code>{id}</code> ist immer eindeutig.
+            Beides hilft gegen Namenskollisionen -- z. B. wenn zwei Kreditkartenabrechnungen
+            vom selben Tag (verschiedene Karten) sonst denselben Dateinamen ergeben würden.
+          </p>
+          <label>
+            Ordnerstruktur (mit <code>/</code> getrennt)
+            <input id="path-template" type="text" />
+          </label>
+          <label>
+            Dateiname
+            <input id="filename-template" type="text" />
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Kategorien (nach Titel)</legend>
+          <p>Erstes passendes Muster gewinnt. Reguläre Ausdrücke, ohne Berücksichtigung von Groß-/Kleinschreibung.</p>
+          <div id="category-patterns" class="pattern-list"></div>
+          <button id="add-category-pattern" type="button">+ Muster</button>
+        </fieldset>
+
+        <fieldset>
+          <legend>Wertpapier-Unterarten (nach Titel)</legend>
+          <p>Nur wirksam bei Dokumenten mit Depotbezug (siehe Depot-Zuordnung unten).</p>
+          <div id="sub-patterns" class="pattern-list"></div>
+          <button id="add-sub-pattern" type="button">+ Muster</button>
+        </fieldset>
+
+        <fieldset>
+          <legend>Depot-Zuordnung</legend>
+          <p>Ordnet eine Depotnummer einem Namen zu, für den Besitzer-Unterordner bei Wertpapierdokumenten.</p>
+          <div id="depot-owners" class="pattern-list"></div>
+          <button id="add-depot-owner" type="button">+ Depot</button>
+        </fieldset>
+
+        <fieldset>
+          <legend>Live-Vorschau</legend>
+          <label>
+            Beispiel-Titel
+            <input id="preview-title" type="text" value="Kontoauszug 9/2026 vom 07.09.2026 zu Konto 9999999999" />
+          </label>
+          <label>
+            Beispiel-Datum
+            <input id="preview-date" type="text" value="2026-09-07" />
+          </label>
+          <label>
+            Beispiel-Depotnummer (leer lassen, wenn kein Depot-Dokument)
+            <input id="preview-depot" type="text" placeholder="z. B. 111111111" />
+          </label>
+          <label>
+            Beispiel-Konto-/Kartenreferenz (für <code>{account}</code>, optional)
+            <input id="preview-account" type="text" placeholder="z. B. 4930 •••• •••• 2523" />
+          </label>
+          <label>
+            Beispiel-ID (für <code>{id}</code>, optional)
+            <input id="preview-id" type="text" placeholder="z. B. abc-123" />
+          </label>
+          <p id="preview-result" class="preview"></p>
+        </fieldset>
+
+        <p>
+          <button id="save-settings" type="button">Speichern</button>
+          <button id="reset-settings" type="button">Auf Standard zurücksetzen</button>
+          <span id="settings-status"></span>
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

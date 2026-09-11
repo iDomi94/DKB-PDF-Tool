@@ -1,0 +1,18 @@
+# Rust / Tauri
+/src-tauri/target/
+/src-tauri/gen/
+
+# Node (package-lock.json wird bewusst NICHT ignoriert -- fuer
+# reproduzierbare CI-Builds per "npm ci")
+node_modules/
+sidecar/node_modules/
+
+# Build-Ausgaben
+dist/
+sidecar/dist/
+
+# Editor/OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+*.log

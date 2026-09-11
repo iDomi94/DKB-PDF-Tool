@@ -1,0 +1,45 @@
+name: CI
+
+# Schneller Check bei jedem Push/PR: kompiliert und laesst die Rust-Tests
+# laufen, ohne einen kompletten, langsamen Installer-Build fuer alle drei
+# Plattformen zu machen (das macht release.yml, nur bei Versions-Tags).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust-Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust-Build-Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri -> target
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Frontend-Abhaengigkeiten
+        working-directory: app
+        run: npm ci
+
+      - name: Sidecar-Abhaengigkeiten
+        working-directory: app/sidecar
+        run: npm ci
+
+      - name: Rust-Tests
+        working-directory: app/src-tauri
+        run: cargo test --locked
+
+      - name: Rust-Formatierung pruefen
+        working-directory: app/src-tauri
+        run: cargo fmt -- --check
