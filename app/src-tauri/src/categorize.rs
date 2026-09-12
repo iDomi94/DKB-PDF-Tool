@@ -67,9 +67,43 @@ pub fn match_pattern_in_text<'a>(text: &str, patterns: &'a [CategoryPattern]) ->
     None
 }
 
-/// "21.08.2026" oder "2026-08-21" irgendwo im Text -> "2026-08-21".
+fn german_month_number(name: &str) -> Option<&'static str> {
+    // Unicode-NFKD + Streichen der Kombinationszeichen normalisiert "März"
+    // und "Marz" (falls Umlaute beim Bereinigen schon weg sind) auf
+    // denselben Vergleich.
+    let normalized: String = name
+        .nfkd()
+        .filter(|c| !is_combining_mark(*c))
+        .collect::<String>()
+        .to_lowercase();
+    Some(match normalized.as_str() {
+        "januar" => "01",
+        "februar" => "02",
+        "marz" | "maerz" => "03",
+        "april" => "04",
+        "mai" => "05",
+        "juni" => "06",
+        "juli" => "07",
+        "august" => "08",
+        "september" => "09",
+        "oktober" => "10",
+        "november" => "11",
+        "dezember" => "12",
+        _ => return None,
+    })
+}
+
+/// "21.08.2026", "2026-08-21", "2026_08_21"/"2026 08 21" oder
+/// "13. September 2019" irgendwo im Text -> "2026-08-21". Zuletzt, als
+/// letzter Ausweg: eine alleinstehende Jahreszahl (1900-2099) ->
+/// "<Jahr>-01-01" -- ungenau, aber immer noch besser als "ohne-datum",
+/// wenn im Dateinamen wirklich nur das Jahr steht (z. B. jaehrliche
+/// Steuerbescheinigungen).
+///
 /// Fuer das Sortieren-Werkzeug (M4): dort gibt es kein API-Datum, das
-/// Datum muss aus Dateiname oder PDF-Text geraten werden.
+/// Datum muss aus Dateiname oder PDF-Text geraten werden. Live gefunden
+/// (12.09.2026) beim Sortieren eines aelteren Archiv-Exports: dort kommen
+/// alle vier Formen tatsaechlich vor, je nach Dokumentart/Baujahr.
 pub fn extract_date(text: &str) -> Option<String> {
     if let Ok(re) = RegexBuilder::new(r"(\d{2})\.(\d{2})\.(\d{4})").build() {
         if let Some(c) = re.captures(text) {
@@ -79,6 +113,28 @@ pub fn extract_date(text: &str) -> Option<String> {
     if let Ok(re) = RegexBuilder::new(r"(\d{4})-(\d{2})-(\d{2})").build() {
         if let Some(c) = re.captures(text) {
             return Some(format!("{}-{}-{}", &c[1], &c[2], &c[3]));
+        }
+    }
+    if let Ok(re) = RegexBuilder::new(r"(\d{4})[_ ](\d{2})[_ ](\d{2})").build() {
+        if let Some(c) = re.captures(text) {
+            return Some(format!("{}-{}-{}", &c[1], &c[2], &c[3]));
+        }
+    }
+    if let Ok(re) = RegexBuilder::new(
+        r"(\d{1,2})\.?\s+(Januar|Februar|Mä?rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s+(\d{4})",
+    )
+    .case_insensitive(true)
+    .build()
+    {
+        if let Some(c) = re.captures(text) {
+            if let Some(month) = german_month_number(&c[2]) {
+                return Some(format!("{}-{}-{:0>2}", &c[3], month, &c[1]));
+            }
+        }
+    }
+    if let Ok(re) = RegexBuilder::new(r"\b(19|20)\d{2}\b").build() {
+        if let Some(m) = re.find(text) {
+            return Some(format!("{}-01-01", m.as_str()));
         }
     }
     None
@@ -310,6 +366,41 @@ mod tests {
             Some("2026-08-21".to_string())
         );
         assert_eq!(extract_date("kein Datum hier"), None);
+    }
+
+    /// Weitere Datumsformate, live gefunden beim Sortieren eines aelteren
+    /// Archiv-Exports (12.09.2026): Unterstrich-Datum, ausgeschriebener
+    /// deutscher Monatsname und der Jahr-only-Fallback.
+    #[test]
+    fn extracts_date_from_archive_formats() {
+        // Unterstrich-Datum -- die fruehe "004" im Titel darf nicht
+        // faelschlich als Datum durchgehen (nur 3 statt 2 Ziffern nach
+        // dem Jahr).
+        assert_eq!(
+            extract_date("Kontoauszug 1021115314 Nr 2021 004 per 2021 05 07"),
+            Some("2021-05-07".to_string())
+        );
+        // Ausgeschriebener deutscher Monatsname, zweistelliger Tag.
+        assert_eq!(
+            extract_date("Anderungen von Vertragsbedingungen zum 13. September 2019"),
+            Some("2019-09-13".to_string())
+        );
+        // Einstelliger Tag.
+        assert_eq!(
+            extract_date("Anderung von Bedingungen zum 3. Januar 2018"),
+            Some("2018-01-03".to_string())
+        );
+        // Nur eine Jahreszahl -> Jahr-01-01 als letzter Ausweg.
+        assert_eq!(
+            extract_date("Steuerbescheinigungen 2019 Max Mustermann"),
+            Some("2019-01-01".to_string())
+        );
+        // Gar kein Datum -> bleibt None, kein falsch-positiver Jahr-Fund
+        // in unzusammenhaengenden Zahlen.
+        assert_eq!(
+            extract_date("Vertragsinformationen Vorvertragliche Informationen DKB-Broker"),
+            None
+        );
     }
 
     #[test]
