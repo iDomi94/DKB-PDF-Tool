@@ -48,7 +48,13 @@ fn default_category_patterns() -> Vec<CategoryPattern> {
         ),
         pattern(r"^Mitteilung", "Mitteilungen"),
         pattern(
-            r"^(Abrechnung (Kauf|Verkauf)|Kosteninformation|Ertragsabrechnung|Vorabpauschale|Depotauszug|Kap(i)?talma(ß|ss)nahme|Hauptversammlung|Auftragsbestätigung|PRIIP-Verordnung)",
+            // "Wertpapierabrechnung" zusaetzlich zu "Abrechnung Kauf/
+            // Verkauf": aeltere, archivierte Dokumente (vor einer
+            // DKB-Systemumstellung) verwenden diese abweichende
+            // Formulierung -- live gefunden beim Sortieren eines alten
+            // Exports (12.09.2026), sonst blieben solche Dateien ganz
+            // ohne Kategorie.
+            r"^(Abrechnung (Kauf|Verkauf)|Wertpapierabrechnung|Kosteninformation|Ertragsabrechnung|Vorabpauschale|Depotauszug|Kap(i)?talma(ß|ss)nahme|Hauptversammlung|Auftragsbestätigung|PRIIP-Verordnung)",
             "Wertpapierdokumente",
         ),
     ]
@@ -58,6 +64,12 @@ fn default_securities_sub_patterns() -> Vec<CategoryPattern> {
     vec![
         pattern(r"^Abrechnung Kauf", "Kauf"),
         pattern(r"^Abrechnung Verkauf", "Verkauf"),
+        // Aeltere Titel-Konvention: eigenstaendiges "Kauf"/"Verkauf" vor
+        // einer WKN-Angabe statt "Abrechnung Kauf/Verkauf" -- z. B.
+        // "Kauf - WKN A0RPWH - Wertpapierabrechnung vom ...". Wortgrenzen
+        // (\b), damit "Kauf" nicht versehentlich in "Verkauf" mit-matcht.
+        pattern(r"\bVerkauf\b", "Verkauf"),
+        pattern(r"\bKauf\b", "Kauf"),
         pattern(r"^(Kosteninformation|PRIIP-Verordnung)", "Informationen"),
         // "Vorabpauschale Investmentfonds" ist der tatsaechliche
         // PDF-Titel; die API nennt dasselbe Dokument "Ertragsabrechnung"

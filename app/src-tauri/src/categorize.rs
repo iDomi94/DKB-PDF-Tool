@@ -8,6 +8,12 @@ use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use unicode_normalization::UnicodeNormalization;
 
+/// Ordnername, wenn kein Kategorie-Muster trifft -- sichtbar statt
+/// stillschweigend im Jahresordner untergehen zu lassen. Nutzer sehen so
+/// sofort, dass hier noch ein Muster fehlt, statt sich zu wundern, wo
+/// ein Dokument abgeblieben ist.
+const UNCATEGORIZED_LABEL: &str = "Unkategorisiert";
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CategoryPattern {
     pub pattern: String,
@@ -149,10 +155,14 @@ pub fn resolve_document(
     settings: &crate::settings::Settings,
 ) -> ResolvedDocument {
     let title = input.title;
+    // Kein Treffer -> eigener, klar erkennbarer Sammelordner statt
+    // stillschweigend in den Jahresordner zu fallen (leeres Segment wird
+    // von render_path_segments sonst einfach weggelassen).
     let category = input
         .category_override
         .map(str::to_string)
-        .or_else(|| match_pattern(title, &settings.category_patterns).map(str::to_string));
+        .or_else(|| match_pattern(title, &settings.category_patterns).map(str::to_string))
+        .or_else(|| Some(UNCATEGORIZED_LABEL.to_string()));
 
     // Besitzer + Unterart haengen an der Depotnummer, nicht am Namen der
     // Kategorie -- die ist frei umbenennbar. Nur Wertpapier-Dokumente
@@ -449,6 +459,76 @@ mod tests {
         assert_eq!(
             match_pattern_in_text(text, &settings.securities_sub_patterns),
             Some("Ertrag")
+        );
+    }
+
+    /// Regressionstest fuer einen echten Fund beim Sortieren eines
+    /// aelteren Dokumenten-Exports (12.09.2026): Dateinamen wie
+    /// "2019-01-21_Kauf_-_WKN_A0RPWH_-_Wertpapierabrechnung_vom_..." und
+    /// "2024-05-20_WKN_..._-_Ertragsabrechnung_Dividenden_vom_..." haben
+    /// das Schluesselwort nicht am Anfang (Datum/WKN stehen davor) --
+    /// betraf auch die eigene "{date}_{title}"-Dateiname-Vorlage. Die
+    /// Datei landete dadurch ohne Kategorie direkt im Jahresordner
+    /// (nur der Besitzer-Ordner ueber die Depotnummer wurde noch
+    /// erkannt). Getestet gegen `match_pattern_in_text`, das
+    /// `sort_one_file` fuer aus Dateinamen abgeleitete Titel nutzt.
+    #[test]
+    fn old_format_filenames_match_despite_prefix() {
+        let settings = crate::settings::Settings::default();
+
+        let old_kauf = "2019-01-21 Kauf - WKN A0RPWH - Wertpapierabrechnung vom 21.01.2019 zu Depot 502283773 - Ordernr. 6539816100";
+        assert_eq!(
+            match_pattern_in_text(old_kauf, &settings.category_patterns),
+            Some("Wertpapierdokumente")
+        );
+        assert_eq!(
+            match_pattern_in_text(old_kauf, &settings.securities_sub_patterns),
+            Some("Kauf")
+        );
+
+        let ertrag = "2024-05-20 WKN DTR0CK - Ertragsabrechnung Dividenden vom 20.05.2024 zu Depot 502283773 - Belegnr. 64175794850";
+        assert_eq!(
+            match_pattern_in_text(ertrag, &settings.category_patterns),
+            Some("Wertpapierdokumente")
+        );
+        assert_eq!(
+            match_pattern_in_text(ertrag, &settings.securities_sub_patterns),
+            Some("Ertrag")
+        );
+    }
+
+    #[test]
+    fn kauf_pattern_does_not_match_inside_verkauf() {
+        let settings = crate::settings::Settings::default();
+        // Wortgrenze: "Verkauf" darf nicht faelschlich als "Kauf" durchgehen.
+        let text = "irgendwas Verkauf WKN A0CACX irgendwas";
+        assert_eq!(
+            match_pattern_in_text(text, &settings.securities_sub_patterns),
+            Some("Verkauf")
+        );
+    }
+
+    /// Kein Muster trifft -> sichtbarer "Unkategorisiert"-Ordner statt
+    /// stillschweigend im Jahresordner zu verschwinden.
+    #[test]
+    fn unmatched_title_falls_back_to_uncategorized() {
+        let settings = crate::settings::Settings::default();
+        let resolved = resolve_document(
+            &DocumentInput {
+                id: "test-id",
+                title: "Ein Titel, der zu keinem Muster passt",
+                date: "2026-01-01",
+                depot_number: None,
+                account_ref: None,
+                category_override: None,
+                sub_category_override: None,
+            },
+            &settings,
+        );
+        assert_eq!(resolved.category, Some(UNCATEGORIZED_LABEL.to_string()));
+        assert_eq!(
+            resolved.path_segments,
+            vec!["2026".to_string(), UNCATEGORIZED_LABEL.to_string()]
         );
     }
 }

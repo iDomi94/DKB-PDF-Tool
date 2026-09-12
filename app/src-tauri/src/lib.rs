@@ -783,16 +783,32 @@ async fn sort_one_file(
         .to_string();
     let title_candidate = stem.replace('_', " ");
 
-    let mut category = categorize::match_pattern(&title_candidate, &settings.category_patterns)
-        .map(str::to_string);
-    let mut sub_category = None;
+    // Ungeankert (match_pattern_in_text), nicht match_pattern: anders als
+    // der API-"subject" beim Online-Abruf beginnt ein Dateiname selten
+    // direkt mit dem Schluesselwort -- meist steht ein Datum oder eine ID
+    // davor (genau wie unsere eigene Standard-Dateiname-Vorlage
+    // "{date}_{title}" es auch tut). Ein rein am Titelanfang verankertes
+    // Muster wuerde deshalb selbst eigene, frueher heruntergeladene
+    // Dateien beim erneuten Sortieren nicht wiedererkennen. Live-Fund
+    // (12.09.2026): Dateien wie "2024-05-20_WKN_..._-_Ertragsabrechnung_
+    // ..." blieben dadurch komplett ohne Kategorie.
+    let mut category =
+        categorize::match_pattern_in_text(&title_candidate, &settings.category_patterns)
+            .map(str::to_string);
     let mut date = categorize::extract_date(&title_candidate);
     let mut depot = categorize::extract_depot_number(&title_candidate);
     let mut account = categorize::extract_card_last4(&stem);
+    let mut sub_category = if depot.is_some() {
+        categorize::match_pattern_in_text(&title_candidate, &settings.securities_sub_patterns)
+            .map(str::to_string)
+    } else {
+        None
+    };
 
     if category.is_none() {
         // Dateiname allein hat zu keinem Treffer gefuehrt -- Text
-        // extrahieren und mit ungeankerten Mustern erneut versuchen.
+        // extrahieren und erneut versuchen (z. B. gescannte/aeltere PDFs,
+        // deren Dateiname keine brauchbaren Schluesselwoerter enthaelt).
         if let Ok(text) = pdf_extract::extract_text(source) {
             category = categorize::match_pattern_in_text(&text, &settings.category_patterns)
                 .map(str::to_string);
@@ -805,17 +821,12 @@ async fn sort_one_file(
             if account.is_none() {
                 account = categorize::extract_card_last4(&text);
             }
-            if depot.is_some() {
+            if depot.is_some() && sub_category.is_none() {
                 sub_category =
                     categorize::match_pattern_in_text(&text, &settings.securities_sub_patterns)
                         .map(str::to_string);
             }
         }
-    }
-    if depot.is_some() && sub_category.is_none() {
-        sub_category =
-            categorize::match_pattern(&title_candidate, &settings.securities_sub_patterns)
-                .map(str::to_string);
     }
 
     let bytes = std::fs::read(source).map_err(|e| format!("Datei nicht lesbar: {e}"))?;

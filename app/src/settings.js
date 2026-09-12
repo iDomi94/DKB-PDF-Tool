@@ -118,7 +118,7 @@ async function runPreview() {
   try {
     const result = await invoke('preview_document', { settings, sample });
     const parts = [
-      `Kategorie: ${result.category ?? '(kein Treffer -> "unbekannt" beim echten Lauf)'}`,
+      `Kategorie: ${result.category}`,
       result.owner ? `Besitzer: ${result.owner}` : null,
       result.subCategory ? `Unterart: ${result.subCategory}` : null,
       `Pfad: ${result.pathSegments.join(' / ')}`,
