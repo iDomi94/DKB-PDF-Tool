@@ -49,14 +49,9 @@ nutzt.
 - **Google Chrome** muss installiert sein. Die Anmeldung läuft über ein
   echtes, sichtbares Chrome-Fenster -- absichtlich, weil Banking-Seiten
   automatisierte "unsichtbare" Browser erkennen und blockieren.
-- **Node.js** (Version 18 oder neuer) muss installiert sein
-  ([nodejs.org](https://nodejs.org)). Der Online-Abruf läuft technisch über
-  einen kleinen, mitgelieferten Node-Prozess, der Node.js aber zum Ausführen
-  braucht. Eine Version ganz ohne diese Voraussetzung ist für eine
-  spätere Version geplant (siehe [Bekannte Einschränkungen](#bekannte-einschränkungen)).
 
-Das **Sortieren**-Werkzeug allein (ohne Online-Abruf) braucht nur die App
-selbst, kein Node.js.
+Alles andere bringt das Programm mit, inklusive einer eigenen Node.js-
+Laufzeit für den Online-Abruf -- keine separate Installation nötig.
 
 ## Installation
 
@@ -104,9 +99,6 @@ Fertige Programme für macOS, Windows und Linux gibt es unter
 
 ## Bekannte Einschränkungen
 
-- **Node.js wird noch vorausgesetzt** (siehe oben). Geplant ist, den
-  mitgelieferten Abruf-Prozess in eine einzelne, eigenständige Programmdatei
-  zu verpacken, damit auch das entfällt.
 - Unsignierte Installer lösen bei macOS und Windows Sicherheitswarnungen
   aus (siehe [Installation](#installation)) -- Code-Signing-Zertifikate
   kosten Geld und sind für dieses kleine Projekt (noch) nicht vorgesehen.
@@ -115,6 +107,12 @@ Fertige Programme für macOS, Windows und Linux gibt es unter
   nicht mehr funktionieren.
 
 ## Entwicklung
+
+Voraussetzung für die Entwicklung (anders als für die fertige App): lokal
+installiertes Node.js. Die mitgelieferte Node.js-Laufzeit wird nur beim
+Bauen der Installer erzeugt (siehe `scripts/fetch-node-runtime.sh` und
+`.github/workflows/release.yml`), im Dev-Modus greift die App auf das
+System-`node` zurück.
 
 ```bash
 cd app

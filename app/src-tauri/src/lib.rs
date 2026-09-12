@@ -65,6 +65,38 @@ fn sidecar_script_path(app: &AppHandle) -> Result<PathBuf, String> {
     Err("Sidecar-Skript weder im Ressourcen- noch im Dev-Verzeichnis gefunden".to_string())
 }
 
+/// Portable Node.js-Laufzeit, die CI beim Bauen unter
+/// "sidecar/node-runtime/<os>-<arch>/" mitbuendelt (siehe
+/// .github/workflows/release.yml) -- damit muessen Nutzer kein eigenes
+/// Node.js installieren, nur Google Chrome fuer die Anmeldung. Im
+/// Dev-Modus gibt es diesen Ordner nicht; dort faellt `ensure_started`
+/// automatisch auf das System-`node` zurueck (muss bei der Entwicklung
+/// selbst installiert sein).
+fn bundled_node_path(app: &AppHandle) -> Option<PathBuf> {
+    let resource_dir = app.path().resource_dir().ok()?;
+
+    let os = match std::env::consts::OS {
+        "macos" => "macos",
+        "linux" => "linux",
+        "windows" => "windows",
+        other => other,
+    };
+    // Bewusst nur die beiden praktisch relevanten Architekturen -- der
+    // macOS-Build ist "universal" (beide Slices in einer Bin-Datei), zur
+    // Laufzeit meldet env::consts::ARCH trotzdem korrekt die tatsaechlich
+    // ausgefuehrte Architektur (macOS waehlt den passenden Slice schon
+    // beim Programmstart, nicht erst hier).
+    let arch = match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        "x86_64" => "x64",
+        other => other,
+    };
+    let bin_name = if cfg!(windows) { "node.exe" } else { "node" };
+
+    let candidate = resource_dir.join(format!("node-runtime/{os}-{arch}/{bin_name}"));
+    candidate.exists().then_some(candidate)
+}
+
 async fn ensure_started(app: &AppHandle, handle: &SidecarHandle) -> Result<(), String> {
     let mut stdin_guard = handle.stdin.lock().await;
     if stdin_guard.is_some() {
@@ -79,13 +111,24 @@ async fn ensure_started(app: &AppHandle, handle: &SidecarHandle) -> Result<(), S
         ));
     }
 
-    let mut child = Command::new("node")
+    let node_bin: std::ffi::OsString = bundled_node_path(app)
+        .map(std::ffi::OsString::from)
+        .unwrap_or_else(|| "node".into());
+
+    let mut child = Command::new(&node_bin)
         .arg(&script)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
-        .map_err(|e| format!("Sidecar konnte nicht gestartet werden: {e}"))?;
+        .map_err(|e| {
+            format!(
+                "Sidecar konnte nicht gestartet werden: {e}. \
+                 In der fertig gebauten App wird eine mitgelieferte Node.js-Laufzeit \
+                 erwartet; im Entwicklungsmodus muss stattdessen Node.js selbst \
+                 installiert sein (node.js.org)."
+            )
+        })?;
 
     let stdin = child.stdin.take().expect("stdin war als piped angefordert");
     let stdout = child

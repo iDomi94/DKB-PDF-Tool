@@ -70,6 +70,29 @@ jobs:
         working-directory: app/sidecar
         run: npm ci
 
+      - name: Portable Node.js-Laufzeit fuer macOS (beide Architekturen) bundeln
+        if: matrix.platform == 'macos-latest'
+        run: |
+          scripts/fetch-node-runtime.sh darwin-arm64 macos-arm64
+          scripts/fetch-node-runtime.sh darwin-x64 macos-x64
+
+      - name: Portable Node.js-Laufzeit fuer Linux bundeln
+        if: matrix.platform == 'ubuntu-22.04'
+        run: scripts/fetch-node-runtime.sh linux-x64 linux-x64
+
+      - name: Portable Node.js-Laufzeit fuer Windows bundeln
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = "20.18.1"
+          $dest = "app/sidecar/node-runtime/windows-x64"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          $zip = "$env:RUNNER_TEMP/node.zip"
+          Invoke-WebRequest -Uri "https://nodejs.org/dist/v$version/node-v$version-win-x64.zip" -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $env:RUNNER_TEMP -Force
+          Copy-Item "$env:RUNNER_TEMP/node-v$version-win-x64/node.exe" "$dest/node.exe"
+
       - name: Rust-Tests
         working-directory: app/src-tauri
         run: cargo test --locked

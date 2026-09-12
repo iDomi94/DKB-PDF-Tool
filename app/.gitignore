@@ -10,6 +10,10 @@ sidecar/node_modules/
 # Build-Ausgaben
 dist/
 sidecar/dist/
+# Wird von scripts/fetch-node-runtime.sh geladen (lokal zum Testen) bzw.
+# von .github/workflows/release.yml (in CI) -- nicht Teil des Repos, ca.
+# 50-100 MB je Plattform.
+sidecar/node-runtime/
 
 # Editor/OS
 .DS_Store
