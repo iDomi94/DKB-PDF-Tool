@@ -106,9 +106,36 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "DKB-PDF-Tool ${{ github.ref_name }}"
           releaseBody: |
-            Automatisch gebauter Release. Vor dem Veroeffentlichen bitte
-            kurz die Installer pruefen -- siehe README fuer Hinweise zu
-            unsignierten Paketen (macOS-Gatekeeper / Windows SmartScreen).
+            ## Welche Datei fuer welches Betriebssystem?
+
+            ### 🍎 macOS (Apple Silicon + Intel, eine Datei fuer beide)
+            - **`DKB-PDF-Tool_*_universal.dmg`** -- herunterladen, oeffnen,
+              App in den Programme-Ordner ziehen.
+
+            ### 🪟 Windows
+            - **`DKB-PDF-Tool_*_x64-setup.exe`** -- Installer, fuer die
+              meisten die richtige Wahl.
+            - `DKB-PDF-Tool_*_x64_en-US.msi` -- alternativ, falls MSI-Pakete
+              bevorzugt werden (z. B. per Firmenrichtlinie).
+
+            ### 🐧 Linux
+            - **`DKB-PDF-Tool_*_amd64.AppImage`** -- ausfuehrbar machen
+              (`chmod +x`) und direkt starten, keine Installation noetig.
+            - `DKB-PDF-Tool_*_amd64.deb` -- fuer Debian/Ubuntu-basierte
+              Systeme.
+            - `DKB-PDF-Tool-*-1.x86_64.rpm` -- fuer Fedora/RHEL-basierte
+              Systeme.
+
+            Die Datei `DKB-PDF-Tool_universal.app.tar.gz` ist kein
+            Installer zum Herunterladen, sondern nur fuer die interne
+            Update-Pruefung gedacht.
+
+            ---
+
+            Automatisch gebauter Entwurf-Release. Vor dem Veroeffentlichen
+            bitte kurz die Installer pruefen -- siehe README fuer Hinweise
+            zu unsignierten Paketen (macOS-Gatekeeper / Windows
+            SmartScreen).
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

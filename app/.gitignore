@@ -12,8 +12,13 @@ dist/
 sidecar/dist/
 # Wird von scripts/fetch-node-runtime.sh geladen (lokal zum Testen) bzw.
 # von .github/workflows/release.yml (in CI) -- nicht Teil des Repos, ca.
-# 50-100 MB je Plattform.
-sidecar/node-runtime/
+# 50-100 MB je Plattform. Der Ordner selbst (.gitkeep) bleibt aber
+# getrackt: tauri.conf.json referenziert ihn als Bundle-Resource, und
+# schon "cargo test"/"cargo check" prueft, ob der Pfad existiert -- ohne
+# .gitkeep wuerde jeder Lauf ohne vorherigen Node-Download fehlschlagen,
+# auch der leichte ci.yml-Workflow, der keine echte Node-Runtime braucht.
+sidecar/node-runtime/*
+!sidecar/node-runtime/.gitkeep
 
 # Editor/OS
 .DS_Store
